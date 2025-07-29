@@ -1,6 +1,6 @@
-# 💻 Ejemplos y Código de Referencia
+# 💻 Examples and Reference Code
 
-## 🔍 Lectura Básica del Sensor VEML7700
+## 🔍 Basic VEML7700 Sensor Reading
 
 ```cpp
 #include <Adafruit_VEML7700.h>
@@ -11,11 +11,11 @@ void setup() {
   Serial.begin(9600);
   
   if (!veml.begin()) {
-    Serial.println("Sensor no encontrado");
+    Serial.println("Sensor not found");
     while (1);
   }
   
-  Serial.println("VEML7700 inicializado");
+  Serial.println("VEML7700 initialized");
 }
 
 void loop() {
@@ -31,401 +31,401 @@ void loop() {
 }
 ```
 
-## 🔌 Control de Transistor 2N2222
+## 🔌 2N2222 Transistor Control
 
 ```cpp
 const int TRANSISTOR_PIN = 16; // GPIO16
 
 void setup() {
   pinMode(TRANSISTOR_PIN, OUTPUT);
-  digitalWrite(TRANSISTOR_PIN, LOW); // Iniciar apagado
+  digitalWrite(TRANSISTOR_PIN, LOW); // Start OFF
 }
 
-void encenderRadio() {
+void turnOnRadio() {
   digitalWrite(TRANSISTOR_PIN, HIGH);
-  Serial.println("Radio ENCENDIDA");
+  Serial.println("Radio ON");
 }
 
-void apagarRadio() {
+void turnOffRadio() {
   digitalWrite(TRANSISTOR_PIN, LOW);
-  Serial.println("Radio APAGADA");
+  Serial.println("Radio OFF");
 }
 ```
 
-## 💡 Sistema de Parpadeos LED
+## 💡 LED Blinking System
 
 ```cpp
-const int LED_PIN = 2; // LED built-in
+const int LED_PIN = 2; // Built-in LED
 
-void parpadear(int veces, int duracion_ms) {
-  for (int i = 0; i < veces; i++) {
-    digitalWrite(LED_PIN, LOW);  // Encender (invertido en ESP8266)
-    delay(duracion_ms);
-    digitalWrite(LED_PIN, HIGH); // Apagar
-    if (i < veces - 1) {
-      delay(duracion_ms);
+void blinkLED(int times, int duration_ms) {
+  for (int i = 0; i < times; i++) {
+    digitalWrite(LED_PIN, LOW);  // Turn ON (inverted on ESP8266)
+    delay(duration_ms);
+    digitalWrite(LED_PIN, HIGH); // Turn OFF
+    if (i < times - 1) {
+      delay(duration_ms);
     }
   }
 }
 
-void patronInicio() {
-  parpadear(3, 200); // 3 parpadeos lentos
+void startupPattern() {
+  blinkLED(3, 200); // 3 slow blinks
 }
 
-void patronError() {
-  parpadear(5, 100); // 5 parpadeos rápidos
+void errorPattern() {
+  blinkLED(5, 100); // 5 fast blinks
 }
 ```
 
-## ⏰ Temporizador No Bloqueante
+## ⏰ Non-Blocking Timer
 
 ```cpp
-unsigned long tiempo_anterior = 0;
-const unsigned long INTERVALO = 60000; // 60 segundos
+unsigned long previous_time = 0;
+const unsigned long INTERVAL = 60000; // 60 seconds
 
 void loop() {
-  unsigned long tiempo_actual = millis();
+  unsigned long current_time = millis();
   
-  if (tiempo_actual - tiempo_anterior >= INTERVALO) {
-    tiempo_anterior = tiempo_actual;
+  if (current_time - previous_time >= INTERVAL) {
+    previous_time = current_time;
     
-    // Ejecutar tarea periódica
-    realizarMedicion();
+    // Execute periodic task
+    performMeasurement();
   }
   
-  // Otras tareas no bloqueantes
-  verificarBotones();
-  actualizarDisplay();
+  // Other non-blocking tasks
+  checkButtons();
+  updateDisplay();
 }
 ```
 
-## 🌅 Lógica de Interruptor Crepuscular
+## 🌅 Twilight Switch Logic
 
 ```cpp
-const float UMBRAL_ON = 30.0;
-const float UMBRAL_OFF = 50.0;
-bool estado_actual = false;
+const float TURN_ON_THRESHOLD = 30.0;
+const float TURN_OFF_THRESHOLD = 50.0;
+bool current_state = false;
 
-void evaluarLuz(float lux) {
-  if (!estado_actual && lux <= UMBRAL_ON) {
-    // Encender cuando esté oscuro
-    estado_actual = true;
-    encenderDispositivo();
-    Serial.println("CREPÚSCULO: Encendiendo");
+void evaluateLight(float lux) {
+  if (!current_state && lux <= TURN_ON_THRESHOLD) {
+    // Turn on when dark
+    current_state = true;
+    turnOnDevice();
+    Serial.println("DUSK: Turning ON");
     
-  } else if (estado_actual && lux >= UMBRAL_OFF) {
-    // Apagar cuando haya luz
-    estado_actual = false;
-    apagarDispositivo();
-    Serial.println("AMANECER: Apagando");
+  } else if (current_state && lux >= TURN_OFF_THRESHOLD) {
+    // Turn off when bright
+    current_state = false;
+    turnOffDevice();
+    Serial.println("DAWN: Turning OFF");
   }
   
-  // Histéresis evita oscilaciones entre 30-50 lux
+  // Hysteresis prevents oscillations between 30-50 lux
 }
 ```
 
-## 🔄 Sistema de Reintentos Robusto
+## 🔄 Robust Retry System
 
 ```cpp
-bool inicializarSensorConReintentos(int max_intentos = 3) {
-  for (int intento = 1; intento <= max_intentos; intento++) {
-    Serial.print("Intento ");
-    Serial.print(intento);
+bool initializeSensorWithRetries(int max_attempts = 3) {
+  for (int attempt = 1; attempt <= max_attempts; attempt++) {
+    Serial.print("Attempt ");
+    Serial.print(attempt);
     Serial.print("/");
-    Serial.println(max_intentos);
+    Serial.println(max_attempts);
     
     if (veml.begin()) {
-      Serial.println("✅ Sensor inicializado");
+      Serial.println("✅ Sensor initialized");
       return true;
     }
     
-    Serial.println("❌ Error en sensor");
-    parpadear(2, 100); // Indicar error
+    Serial.println("❌ Sensor error");
+    blinkLED(2, 100); // Indicate error
     delay(1000);
   }
   
-  Serial.println("🚨 Error crítico de sensor");
+  Serial.println("🚨 Critical sensor error");
   return false;
 }
 ```
 
-## 📊 Clasificación de Niveles de Luz
+## 📊 Light Level Classification
 
 ```cpp
-enum NivelLuz {
-  MUY_OSCURO,    // 0-10 lux
-  OSCURO,        // 10-50 lux  
-  INTERIOR,      // 50-200 lux
-  BRILLANTE,     // 200-1000 lux
-  SOL_DIRECTO    // >1000 lux
+enum LightLevel {
+  VERY_DARK,     // 0-10 lux
+  DARK,          // 10-50 lux  
+  INDOOR,        // 50-200 lux
+  BRIGHT,        // 200-1000 lux
+  DIRECT_SUN     // >1000 lux
 };
 
-NivelLuz clasificarLuz(float lux) {
-  if (lux < 10) return MUY_OSCURO;
-  if (lux < 50) return OSCURO;
-  if (lux < 200) return INTERIOR;
-  if (lux < 1000) return BRILLANTE;
-  return SOL_DIRECTO;
+LightLevel classifyLight(float lux) {
+  if (lux < 10) return VERY_DARK;
+  if (lux < 50) return DARK;
+  if (lux < 200) return INDOOR;
+  if (lux < 1000) return BRIGHT;
+  return DIRECT_SUN;
 }
 
-String obtenerDescripcion(NivelLuz nivel) {
-  switch (nivel) {
-    case MUY_OSCURO: return "MUY OSCURO (NOCHE)";
-    case OSCURO: return "OSCURO (CREPÚSCULO)";
-    case INTERIOR: return "INTERIOR/NUBLADO";
-    case BRILLANTE: return "LUZ BRILLANTE";
-    case SOL_DIRECTO: return "LUZ SOLAR DIRECTA";
-    default: return "DESCONOCIDO";
+String getDescription(LightLevel level) {
+  switch (level) {
+    case VERY_DARK: return "VERY DARK (NIGHT)";
+    case DARK: return "DARK (TWILIGHT)";
+    case INDOOR: return "INDOOR/CLOUDY";
+    case BRIGHT: return "BRIGHT LIGHT";
+    case DIRECT_SUN: return "DIRECT SUNLIGHT";
+    default: return "UNKNOWN";
   }
 }
 ```
 
-## 🕐 Formateo de Tiempo
+## 🕐 Time Formatting
 
 ```cpp
-void mostrarTiempo(unsigned long milisegundos) {
-  unsigned long segundos = milisegundos / 1000;
-  unsigned long minutos = segundos / 60;
-  unsigned long horas = minutos / 60;
+void showTime(unsigned long milliseconds) {
+  unsigned long seconds = milliseconds / 1000;
+  unsigned long minutes = seconds / 60;
+  unsigned long hours = minutes / 60;
   
-  segundos = segundos % 60;
-  minutos = minutos % 60;
+  seconds = seconds % 60;
+  minutes = minutes % 60;
   
-  if (horas > 0) {
-    Serial.print(horas);
+  if (hours > 0) {
+    Serial.print(hours);
     Serial.print("h ");
   }
   
-  if (minutos < 10) Serial.print("0");
-  Serial.print(minutos);
+  if (minutes < 10) Serial.print("0");
+  Serial.print(minutes);
   Serial.print(":");
-  if (segundos < 10) Serial.print("0");
-  Serial.print(segundos);
+  if (seconds < 10) Serial.print("0");
+  Serial.print(seconds);
 }
 
-void mostrarTemporizadorRegresivo(unsigned long tiempo_restante) {
-  Serial.print("⏰ Próxima verificación en: ");
-  mostrarTiempo(tiempo_restante);
+void showCountdownTimer(unsigned long time_remaining) {
+  Serial.print("⏰ Next check in: ");
+  showTime(time_remaining);
   Serial.println(" (mm:ss)");
 }
 ```
 
-## 🛡️ Protección contra Desbordamiento de millis()
+## 🛡️ millis() Overflow Protection
 
 ```cpp
-bool tiempoTranscurrido(unsigned long &tiempo_anterior, unsigned long intervalo) {
-  unsigned long tiempo_actual = millis();
+bool timeElapsed(unsigned long &previous_time, unsigned long interval) {
+  unsigned long current_time = millis();
   
-  // Manejo de desbordamiento (cada ~49 días)
-  if (tiempo_actual < tiempo_anterior) {
-    tiempo_anterior = tiempo_actual; // Reset en desbordamiento
+  // Handle overflow (every ~49 days)
+  if (current_time < previous_time) {
+    previous_time = current_time; // Reset on overflow
   }
   
-  if (tiempo_actual - tiempo_anterior >= intervalo) {
-    tiempo_anterior = tiempo_actual;
+  if (current_time - previous_time >= interval) {
+    previous_time = current_time;
     return true;
   }
   
   return false;
 }
 
-// Uso:
-unsigned long ultimo_parpadeo = 0;
-const unsigned long INTERVALO_PARPADEO = 5000;
+// Usage:
+unsigned long last_blink = 0;
+const unsigned long BLINK_INTERVAL = 5000;
 
 void loop() {
-  if (tiempoTranscurrido(ultimo_parpadeo, INTERVALO_PARPADEO)) {
-    parpadear(1, 100);
+  if (timeElapsed(last_blink, BLINK_INTERVAL)) {
+    blinkLED(1, 100);
   }
 }
 ```
 
-## 🔧 Configuración Dinámica de Umbrales
+## 🔧 Dynamic Threshold Configuration
 
 ```cpp
-struct ConfiguracionLuz {
-  float umbral_encendido;
-  float umbral_apagado;
-  unsigned long intervalo_ms;
-  bool debug_activo;
+struct LightConfiguration {
+  float turn_on_threshold;
+  float turn_off_threshold;
+  unsigned long interval_ms;
+  bool debug_active;
 };
 
-ConfiguracionLuz config = {
-  .umbral_encendido = 30.0,
-  .umbral_apagado = 50.0,
-  .intervalo_ms = 60000,
-  .debug_activo = true
+LightConfiguration config = {
+  .turn_on_threshold = 30.0,
+  .turn_off_threshold = 50.0,
+  .interval_ms = 60000,
+  .debug_active = true
 };
 
-void ajustarSensibilidad(String modo) {
-  if (modo == "alta") {
-    config.umbral_encendido = 10.0;
-    config.umbral_apagado = 30.0;
-    Serial.println("Modo alta sensibilidad");
+void adjustSensitivity(String mode) {
+  if (mode == "high") {
+    config.turn_on_threshold = 10.0;
+    config.turn_off_threshold = 30.0;
+    Serial.println("High sensitivity mode");
     
-  } else if (modo == "baja") {
-    config.umbral_encendido = 50.0;
-    config.umbral_apagado = 100.0;
-    Serial.println("Modo baja sensibilidad");
+  } else if (mode == "low") {
+    config.turn_on_threshold = 50.0;
+    config.turn_off_threshold = 100.0;
+    Serial.println("Low sensitivity mode");
     
   } else {
-    config.umbral_encendido = 30.0;
-    config.umbral_apagado = 50.0;
-    Serial.println("Modo sensibilidad normal");
+    config.turn_on_threshold = 30.0;
+    config.turn_off_threshold = 50.0;
+    Serial.println("Normal sensitivity mode");
   }
 }
 ```
 
-## 📈 Monitoreo de Rendimiento
+## 📈 Performance Monitoring
 
 ```cpp
-struct EstadisticasSistema {
-  unsigned long ciclos_completados;
-  unsigned long errores_sensor;
-  unsigned long cambios_estado;
-  unsigned long tiempo_encendido_total;
-  unsigned long uptime_inicio;
+struct SystemStats {
+  unsigned long cycles_completed;
+  unsigned long sensor_errors;
+  unsigned long state_changes;
+  unsigned long total_on_time;
+  unsigned long startup_time;
 };
 
-EstadisticasSistema stats = {0};
+SystemStats stats = {0};
 
-void inicializarEstadisticas() {
-  stats.uptime_inicio = millis();
+void initializeStats() {
+  stats.startup_time = millis();
 }
 
-void mostrarEstadisticas() {
-  unsigned long uptime = millis() - stats.uptime_inicio;
+void showStats() {
+  unsigned long uptime = millis() - stats.startup_time;
   
-  Serial.println("📊 ESTADÍSTICAS DEL SISTEMA");
-  Serial.print("⏱️ Tiempo funcionamiento: ");
-  mostrarTiempo(uptime);
+  Serial.println("📊 SYSTEM STATISTICS");
+  Serial.print("⏱️ Uptime: ");
+  showTime(uptime);
   Serial.println();
   
-  Serial.print("🔄 Ciclos completados: ");
-  Serial.println(stats.ciclos_completados);
+  Serial.print("🔄 Cycles completed: ");
+  Serial.println(stats.cycles_completed);
   
-  Serial.print("⚠️ Errores de sensor: ");
-  Serial.println(stats.errores_sensor);
+  Serial.print("⚠️ Sensor errors: ");
+  Serial.println(stats.sensor_errors);
   
-  Serial.print("🔀 Cambios de estado: ");
-  Serial.println(stats.cambios_estado);
+  Serial.print("🔀 State changes: ");
+  Serial.println(stats.state_changes);
   
-  float porcentaje_encendido = (stats.tiempo_encendido_total * 100.0) / uptime;
-  Serial.print("💡 Tiempo radio encendida: ");
-  Serial.print(porcentaje_encendido, 1);
+  float on_percentage = (stats.total_on_time * 100.0) / uptime;
+  Serial.print("💡 Radio on time: ");
+  Serial.print(on_percentage, 1);
   Serial.println("%");
 }
 ```
 
-## 🔍 Scanner I2C para Diagnóstico
+## 🔍 I2C Scanner for Diagnostics
 
 ```cpp
-void scanearI2C() {
-  Serial.println("Escaneando dispositivos I2C...");
+void scanI2C() {
+  Serial.println("Scanning I2C devices...");
   
-  int dispositivos_encontrados = 0;
+  int devices_found = 0;
   
-  for (byte direccion = 1; direccion < 127; direccion++) {
-    Wire.beginTransmission(direccion);
+  for (byte address = 1; address < 127; address++) {
+    Wire.beginTransmission(address);
     byte error = Wire.endTransmission();
     
     if (error == 0) {
-      Serial.print("Dispositivo encontrado en 0x");
-      if (direccion < 16) Serial.print("0");
-      Serial.print(direccion, HEX);
+      Serial.print("Device found at 0x");
+      if (address < 16) Serial.print("0");
+      Serial.print(address, HEX);
       
-      // Identificar dispositivos conocidos
-      if (direccion == 0x10) Serial.print(" (VEML7700)");
+      // Identify known devices
+      if (address == 0x10) Serial.print(" (VEML7700)");
       
       Serial.println();
-      dispositivos_encontrados++;
+      devices_found++;
     }
   }
   
-  if (dispositivos_encontrados == 0) {
-    Serial.println("❌ No se encontraron dispositivos I2C");
+  if (devices_found == 0) {
+    Serial.println("❌ No I2C devices found");
   } else {
-    Serial.print("✅ Se encontraron ");
-    Serial.print(dispositivos_encontrados);
-    Serial.println(" dispositivos");
+    Serial.print("✅ Found ");
+    Serial.print(devices_found);
+    Serial.println(" devices");
   }
 }
 ```
 
 ---
 
-## 🚀 Extensiones Avanzadas
+## 🚀 Advanced Extensions
 
-### WiFi y Servidor Web
+### WiFi and Web Server
 
 ```cpp
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 
-const char* ssid = "TuWiFi";
-const char* password = "TuPassword";
+const char* ssid = "YourWiFi";
+const char* password = "YourPassword";
 
 ESP8266WebServer server(80);
 
-void configurarWiFi() {
+void setupWiFi() {
   WiFi.begin(ssid, password);
   
-  Serial.print("Conectando a WiFi");
+  Serial.print("Connecting to WiFi");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
   
   Serial.println();
-  Serial.print("Conectado. IP: ");
+  Serial.print("Connected. IP: ");
   Serial.println(WiFi.localIP());
 }
 
-void configurarServidor() {
+void setupServer() {
   server.on("/", []() {
-    String html = "<h1>Interruptor Crepuscular</h1>";
-    html += "<p>Lux actual: " + String(veml.readLux()) + "</p>";
-    html += "<p>Estado radio: " + String(radio_encendida ? "ON" : "OFF") + "</p>";
+    String html = "<h1>Twilight Switch</h1>";
+    html += "<p>Current Lux: " + String(veml.readLux()) + "</p>";
+    html += "<p>Radio State: " + String(radio_on ? "ON" : "OFF") + "</p>";
     server.send(200, "text/html", html);
   });
   
   server.begin();
-  Serial.println("Servidor web iniciado");
+  Serial.println("Web server started");
 }
 ```
 
-### Almacenamiento de Datos
+### Data Storage
 
 ```cpp
 #include <EEPROM.h>
 
-struct ConfiguracionPersistente {
-  float umbral_on;
-  float umbral_off;
-  unsigned long intervalo;
+struct PersistentConfig {
+  float turn_on_threshold;
+  float turn_off_threshold;
+  unsigned long interval;
   uint16_t checksum;
 };
 
-void guardarConfiguracion(ConfiguracionPersistente config) {
-  config.checksum = calcularChecksum(config);
+void saveConfig(PersistentConfig config) {
+  config.checksum = calculateChecksum(config);
   EEPROM.put(0, config);
   EEPROM.commit();
-  Serial.println("Configuración guardada");
+  Serial.println("Configuration saved");
 }
 
-bool cargarConfiguracion(ConfiguracionPersistente &config) {
+bool loadConfig(PersistentConfig &config) {
   EEPROM.get(0, config);
   
-  if (config.checksum == calcularChecksum(config)) {
-    Serial.println("Configuración cargada");
+  if (config.checksum == calculateChecksum(config)) {
+    Serial.println("Configuration loaded");
     return true;
   }
   
-  Serial.println("Configuración corrupta, usando valores por defecto");
+  Serial.println("Corrupted configuration, using defaults");
   return false;
 }
 ```
 
 ---
 
-💡 **Tip**: Estos ejemplos pueden combinarse y adaptarse según las necesidades específicas de tu proyecto.
+💡 **Tip**: These examples can be combined and adapted according to your project's specific needs.

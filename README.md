@@ -246,9 +246,3 @@ This project is under the MIT License - see the [LICENSE](LICENSE) file for deta
 ---
 
 ⭐ If this project has been useful to you, consider giving it a star!
-
----
-
-## 🌍 Other Languages
-
-- [Español (Spanish)](README.es.md) - Versión en español
