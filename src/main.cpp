@@ -2,327 +2,327 @@
 #include <Wire.h>
 #include <Adafruit_VEML7700.h>
 
-// Pin GPIO para controlar el transistor 2N2222
-// En Wemos D1: D2 = GPIO4, D3 = GPIO0, D4 = GPIO2, etc.
-const int RADIO_CONTROL_PIN = 16; // GPIO16 (corresponde a D0 en Wemos D1)
+// GPIO pin to control 2N2222 transistor
+// On Wemos D1: D2 = GPIO4, D3 = GPIO0, D4 = GPIO2, etc.
+const int RADIO_CONTROL_PIN = 16; // GPIO16 (corresponds to D0 on Wemos D1)
 
-// Pin del LED built-in (GPIO2 en Wemos D1)
+// Built-in LED pin (GPIO2 on Wemos D1)
 const int LED_BUILTIN_PIN = 2;
 
-// Objeto del sensor VEML7700
+// VEML7700 sensor object
 Adafruit_VEML7700 veml = Adafruit_VEML7700();
 
-// Tiempos de ciclo (en milisegundos)
-const unsigned long TIEMPO_VERIFICACION = 60000;  // Verificar luz cada 30 segundos
+// Cycle times (in milliseconds)
+const unsigned long CHECK_INTERVAL = 60000;  // Check light every 60 seconds
 
-// Umbrales de luz para interruptor crepuscular (en lux)
-const float UMBRAL_ENCENDIDO = 30.0;   // Encender cuando baje de 30 lux (crepúsculo temprano)
-const float UMBRAL_APAGADO = 50.0;     // Apagar cuando suba de 50 lux (amanecer muy temprano)
+// Light thresholds for twilight switch (in lux)
+const float TURN_ON_THRESHOLD = 30.0;   // Turn on when below 30 lux (early twilight)
+const float TURN_OFF_THRESHOLD = 50.0;  // Turn off when above 50 lux (very early dawn)
 
-// Estado actual de la radio
-bool radio_encendida = false;
+// Current radio state
+bool radio_on = false;
 
-// Contador de ciclos
-unsigned long contador_ciclos = 0;
+// Cycle counter
+unsigned long cycle_counter = 0;
 
-// Variables para el temporizador
-unsigned long tiempo_ultima_verificacion = 0;
-unsigned long tiempo_siguiente_verificacion = 0;
+// Timer variables
+unsigned long last_check_time = 0;
+unsigned long next_check_time = 0;
 
-// Función para hacer parpadeo del LED (bip bip visual)
-void bipBipLED(int veces, int duracion_ms) {
-  for (int i = 0; i < veces; i++) {
-    digitalWrite(LED_BUILTIN_PIN, LOW);  // Encender LED (LOW en ESP8266)
-    delay(duracion_ms);
-    digitalWrite(LED_BUILTIN_PIN, HIGH); // Apagar LED (HIGH en ESP8266)
-    if (i < veces - 1) {
-      delay(duracion_ms);
+// Function to make LED blink (visual beep)
+void blinkLED(int times, int duration_ms) {
+  for (int i = 0; i < times; i++) {
+    digitalWrite(LED_BUILTIN_PIN, LOW);  // Turn on LED (LOW on ESP8266)
+    delay(duration_ms);
+    digitalWrite(LED_BUILTIN_PIN, HIGH); // Turn off LED (HIGH on ESP8266)
+    if (i < times - 1) {
+      delay(duration_ms);
     }
   }
 }
 
-// Función para bip de inicio del sistema
-void bipInicio() {
-  Serial.println("🔊 ¡BIP-BIP! Sistema iniciando...");
-  bipBipLED(3, 200); // 3 parpadeos de 200ms cada uno
+// Function for system startup beep
+void startupBeep() {
+  Serial.println("🔊 BEEP-BEEP! System starting...");
+  blinkLED(3, 200); // 3 blinks of 200ms each
 }
 
-// Función para bip de medición
-void bipMedicion() {
-  Serial.println("🔊 ¡BIP! Realizando medición...");
-  bipBipLED(1, 100); // 1 parpadeo corto de 100ms
+// Function for measurement beep
+void measurementBeep() {
+  Serial.println("🔊 BEEP! Taking measurement...");
+  blinkLED(1, 100); // 1 short blink of 100ms
 }
 
-// Función para formatear tiempo en mm:ss
-void mostrarTiempo(unsigned long milisegundos) {
-  unsigned long segundos = milisegundos / 1000;
-  unsigned long minutos = segundos / 60;
-  segundos = segundos % 60;
+// Function to format time in mm:ss
+void showTime(unsigned long milliseconds) {
+  unsigned long seconds = milliseconds / 1000;
+  unsigned long minutes = seconds / 60;
+  seconds = seconds % 60;
   
-  if (minutos < 10) Serial.print("0");
-  Serial.print(minutos);
+  if (minutes < 10) Serial.print("0");
+  Serial.print(minutes);
   Serial.print(":");
-  if (segundos < 10) Serial.print("0");
-  Serial.print(segundos);
+  if (seconds < 10) Serial.print("0");
+  Serial.print(seconds);
 }
 
-// Función para mostrar el temporizador hasta la próxima verificación
-void mostrarTemporizador() {
-  unsigned long tiempo_actual = millis();
+// Function to show timer until next check
+void showTimer() {
+  unsigned long current_time = millis();
   
-  if (tiempo_siguiente_verificacion > tiempo_actual) {
-    unsigned long tiempo_restante = tiempo_siguiente_verificacion - tiempo_actual;
-    Serial.print("⏰ Próxima verificación en: ");
-    mostrarTiempo(tiempo_restante);
+  if (next_check_time > current_time) {
+    unsigned long remaining_time = next_check_time - current_time;
+    Serial.print("⏰ Next check in: ");
+    showTime(remaining_time);
     Serial.println(" (mm:ss)");
   } else {
-    Serial.println("⏰ Verificación en curso...");
+    Serial.println("⏰ Check in progress...");
   }
 }
 
-// Función para leer y mostrar datos del sensor de luz
-void mostrarDatosLuz() {
+// Function to read and display light sensor data
+void showLightData() {
   float lux = veml.readLux();
   float als = veml.readALS();
   
-  Serial.print("💡 Intensidad lumínica: ");
+  Serial.print("💡 Light intensity: ");
   Serial.print(lux);
   Serial.print(" lux | ALS: ");
   Serial.println(als);
   
-  // Clasificar nivel de luz
+  // Classify light level
   if (lux < 10) {
-    Serial.println("   📊 Nivel: MUY OSCURO (NOCHE)");
+    Serial.println("   📊 Level: VERY DARK (NIGHT)");
   } else if (lux < 50) {
-    Serial.println("   📊 Nivel: OSCURO (CREPÚSCULO)");
+    Serial.println("   📊 Level: DARK (TWILIGHT)");
   } else if (lux < 200) {
-    Serial.println("   📊 Nivel: INTERIOR/NUBLADO");
+    Serial.println("   📊 Level: INDOOR/CLOUDY");
   } else if (lux < 1000) {
-    Serial.println("   📊 Nivel: LUZ BRILLANTE");
+    Serial.println("   📊 Level: BRIGHT LIGHT");
   } else {
-    Serial.println("   📊 Nivel: LUZ SOLAR DIRECTA (DÍA)");
+    Serial.println("   📊 Level: DIRECT SUNLIGHT (DAY)");
   }
   
-  // Mostrar estado del interruptor crepuscular
-  Serial.print("   🌅 Estado actual: Radio ");
-  if (radio_encendida) {
-    Serial.println("ENCENDIDA");
+  // Show twilight switch state
+  Serial.print("   🌅 Current state: Radio ");
+  if (radio_on) {
+    Serial.println("ON");
   } else {
-    Serial.println("APAGADA");
+    Serial.println("OFF");
   }
   
-  // Mostrar próxima acción esperada
-  if (radio_encendida && lux >= UMBRAL_APAGADO) {
-    Serial.print("   🔄 Próxima acción: APAGAR (luz >= ");
-    Serial.print(UMBRAL_APAGADO);
-    Serial.println(" lux - AMANECER)");
-  } else if (!radio_encendida && lux <= UMBRAL_ENCENDIDO) {
-    Serial.print("   🔄 Próxima acción: ENCENDER (luz <= ");
-    Serial.print(UMBRAL_ENCENDIDO);
-    Serial.println(" lux - CREPÚSCULO)");
+  // Show expected next action
+  if (radio_on && lux >= TURN_OFF_THRESHOLD) {
+    Serial.print("   🔄 Next action: TURN OFF (light >= ");
+    Serial.print(TURN_OFF_THRESHOLD);
+    Serial.println(" lux - DAWN)");
+  } else if (!radio_on && lux <= TURN_ON_THRESHOLD) {
+    Serial.print("   🔄 Next action: TURN ON (light <= ");
+    Serial.print(TURN_ON_THRESHOLD);
+    Serial.println(" lux - TWILIGHT)");
   } else {
-    Serial.println("   ✅ Estado correcto para las condiciones actuales");
+    Serial.println("   ✅ Correct state for current conditions");
   }
 }
 
 void setup() {
-  // Configurar pines PRIMERO (antes que todo)
+  // Configure pins FIRST (before everything else)
   pinMode(RADIO_CONTROL_PIN, OUTPUT);
   pinMode(LED_BUILTIN_PIN, OUTPUT);
   
-  // Inicializar LED apagado y radio apagada
-  digitalWrite(LED_BUILTIN_PIN, HIGH); // HIGH = apagado en ESP8266
-  digitalWrite(RADIO_CONTROL_PIN, LOW); // Asegurar radio apagada al inicio
+  // Initialize LED off and radio off
+  digitalWrite(LED_BUILTIN_PIN, HIGH); // HIGH = off on ESP8266
+  digitalWrite(RADIO_CONTROL_PIN, LOW); // Ensure radio off at startup
   
-  // Pausa para estabilización del sistema
-  delay(2000); // Aumentado para mejor estabilización con batería
+  // Pause for system stabilization
+  delay(2000); // Increased for better battery stabilization
   
-  // BIP BIP de inicio del sistema (funciona sin Serial)
-  bipInicio();
+  // Startup beep (works without Serial)
+  startupBeep();
   
-  // Inicializar comunicación serie para depuración
+  // Initialize serial communication for debugging
   Serial.begin(9600);
-  delay(500); // Pausa para establecer conexión serie
+  delay(500); // Pause to establish serial connection
   
-  Serial.println("=== INTERRUPTOR CREPUSCULAR CON TEMPORIZADOR ===");
-  Serial.println("Control automático de radio con sensor VEML7700");
-  Serial.print("🌅 Umbral ENCENDIDO (crepúsculo): ");
-  Serial.print(UMBRAL_ENCENDIDO);
+  Serial.println("=== TWILIGHT SWITCH WITH TIMER ===");
+  Serial.println("Automatic radio control with VEML7700 sensor");
+  Serial.print("🌅 TURN ON threshold (twilight): ");
+  Serial.print(TURN_ON_THRESHOLD);
   Serial.println(" lux");
-  Serial.print("🌄 Umbral APAGADO (amanecer): ");
-  Serial.print(UMBRAL_APAGADO);
+  Serial.print("🌄 TURN OFF threshold (dawn): ");
+  Serial.print(TURN_OFF_THRESHOLD);
   Serial.println(" lux");
-  Serial.print("⏰ Intervalo de verificación: ");
-  Serial.print(TIEMPO_VERIFICACION / 1000);
-  Serial.println(" segundos");
-  Serial.println("🔊 LED integrado configurado para indicaciones visuales");
+  Serial.print("⏰ Check interval: ");
+  Serial.print(CHECK_INTERVAL / 1000);
+  Serial.println(" seconds");
+  Serial.println("🔊 Built-in LED configured for visual indicators");
   Serial.println();
   
-  // Inicializar I2C con reintentos para mayor robustez
+  // Initialize I2C with retries for better robustness
   Wire.begin();
   delay(100);
   
-  // Inicializar sensor VEML7700 con reintentos
-  bool sensor_inicializado = false;
-  for (int intento = 1; intento <= 3; intento++) {
+  // Initialize VEML7700 sensor with retries
+  bool sensor_initialized = false;
+  for (int attempt = 1; attempt <= 3; attempt++) {
     if (veml.begin()) {
-      sensor_inicializado = true;
-      Serial.println("✅ Sensor VEML7700 inicializado correctamente");
+      sensor_initialized = true;
+      Serial.println("✅ VEML7700 sensor initialized correctly");
       break;
     } else {
-      Serial.print("⚠️ Intento ");
-      Serial.print(intento);
-      Serial.println("/3 - Error inicializando sensor VEML7700");
-      // Parpadeo de error (2 parpadeos rápidos)
-      bipBipLED(2, 100);
+      Serial.print("⚠️ Attempt ");
+      Serial.print(attempt);
+      Serial.println("/3 - Error initializing VEML7700 sensor");
+      // Error blink (2 fast blinks)
+      blinkLED(2, 100);
       delay(1000);
     }
   }
   
-  if (!sensor_inicializado) {
-    Serial.println("❌ ERROR CRÍTICO: No se pudo inicializar el sensor VEML7700!");
-    // Parpadeo de error crítico (5 parpadeos rápidos)
+  if (!sensor_initialized) {
+    Serial.println("❌ CRITICAL ERROR: Could not initialize VEML7700 sensor!");
+    // Critical error blink (5 fast blinks)
     while (1) {
-      bipBipLED(5, 200);
+      blinkLED(5, 200);
       delay(2000);
     }
   }
   
-  // Inicializar radio en estado apagado
+  // Initialize radio in off state
   digitalWrite(RADIO_CONTROL_PIN, LOW);
-  radio_encendida = false;
-  Serial.println("✅ Radio inicializada en estado APAGADO");
+  radio_on = false;
+  Serial.println("✅ Radio initialized in OFF state");
   
-  // Hacer una lectura inicial para determinar el estado
-  Serial.println("\n📊 Evaluando condiciones iniciales...");
-  bipMedicion(); // BIP para la medición inicial
-  mostrarDatosLuz();
+  // Take initial reading to determine state
+  Serial.println("\n📊 Evaluating initial conditions...");
+  measurementBeep(); // Beep for initial measurement
+  showLightData();
   
-  // Inicializar temporizador
-  tiempo_ultima_verificacion = millis();
-  tiempo_siguiente_verificacion = tiempo_ultima_verificacion + TIEMPO_VERIFICACION;
-  mostrarTemporizador();
+  // Initialize timer
+  last_check_time = millis();
+  next_check_time = last_check_time + CHECK_INTERVAL;
+  showTimer();
   
   Serial.println("================================\n");
 }
 
 void loop() {
-  unsigned long tiempo_actual = millis();
+  unsigned long current_time = millis();
   
-  // Verificar si es momento de hacer una nueva verificación
-  if (tiempo_actual >= tiempo_siguiente_verificacion) {
-    // Incrementar contador de verificaciones
-    contador_ciclos++;
+  // Check if it's time for a new verification
+  if (current_time >= next_check_time) {
+    // Increment check counter
+    cycle_counter++;
     
-    // Actualizar tiempos para el próximo ciclo
-    tiempo_ultima_verificacion = tiempo_actual;
-    tiempo_siguiente_verificacion = tiempo_actual + TIEMPO_VERIFICACION;
+    // Update times for next cycle
+    last_check_time = current_time;
+    next_check_time = current_time + CHECK_INTERVAL;
     
-    // Mostrar información de la verificación
-    Serial.print("🔍 VERIFICACIÓN #");
-    Serial.print(contador_ciclos);
+    // Show check information
+    Serial.print("🔍 CHECK #");
+    Serial.print(cycle_counter);
     Serial.print(" - ");
     
-    // Obtener hora actual (simulada con millis)
-    unsigned long horas = (tiempo_actual / 3600000) % 24;
-    unsigned long minutos = (tiempo_actual / 60000) % 60;
-    Serial.print(horas);
+    // Get current time (simulated with millis)
+    unsigned long hours = (current_time / 3600000) % 24;
+    unsigned long minutes = (current_time / 60000) % 60;
+    Serial.print(hours);
     Serial.print(":");
-    if (minutos < 10) Serial.print("0");
-    Serial.println(minutos);
+    if (minutes < 10) Serial.print("0");
+    Serial.println(minutes);
     
-    // Leer nivel de luz actual
-    bipMedicion(); // BIP para indicar que se está midiendo
-    float lux_actual = veml.readLux();
-    mostrarDatosLuz();
+    // Read current light level
+    measurementBeep(); // Beep to indicate measurement
+    float current_lux = veml.readLux();
+    showLightData();
     Serial.println();
     
-    // LÓGICA DEL INTERRUPTOR CREPUSCULAR
-    bool cambio_estado = false;
+    // TWILIGHT SWITCH LOGIC
+    bool state_changed = false;
     
-    if (!radio_encendida && lux_actual <= UMBRAL_ENCENDIDO) {
-      // CONDICIÓN: ENCENDER (Crepúsculo/Noche)
-      Serial.println("🌙 CREPÚSCULO DETECTADO - Encendiendo radio...");
+    if (!radio_on && current_lux <= TURN_ON_THRESHOLD) {
+      // CONDITION: TURN ON (Twilight/Night)
+      Serial.println("🌙 TWILIGHT DETECTED - Turning on radio...");
       digitalWrite(RADIO_CONTROL_PIN, HIGH);
-      radio_encendida = true;
-      cambio_estado = true;
+      radio_on = true;
+      state_changed = true;
       
-      Serial.print("✅ RADIO ENCENDIDA (luz: ");
-      Serial.print(lux_actual);
+      Serial.print("✅ RADIO ON (light: ");
+      Serial.print(current_lux);
       Serial.print(" <= ");
-      Serial.print(UMBRAL_ENCENDIDO);
+      Serial.print(TURN_ON_THRESHOLD);
       Serial.println(" lux)");
       
-    } else if (radio_encendida && lux_actual >= UMBRAL_APAGADO) {
-      // CONDICIÓN: APAGAR (Amanecer/Día)
-      Serial.println("🌅 AMANECER DETECTADO - Apagando radio...");
+    } else if (radio_on && current_lux >= TURN_OFF_THRESHOLD) {
+      // CONDITION: TURN OFF (Dawn/Day)
+      Serial.println("🌅 DAWN DETECTED - Turning off radio...");
       digitalWrite(RADIO_CONTROL_PIN, LOW);
-      radio_encendida = false;
-      cambio_estado = true;
+      radio_on = false;
+      state_changed = true;
       
-      Serial.print("✅ RADIO APAGADA (luz: ");
-      Serial.print(lux_actual);
+      Serial.print("✅ RADIO OFF (light: ");
+      Serial.print(current_lux);
       Serial.print(" >= ");
-      Serial.print(UMBRAL_APAGADO);
+      Serial.print(TURN_OFF_THRESHOLD);
       Serial.println(" lux)");
       
     } else {
-      // SIN CAMBIOS - Mantener estado actual
-      if (radio_encendida) {
-        Serial.print("🔄 Radio manteniéndose ENCENDIDA (noche continúa - ");
-        Serial.print(lux_actual);
+      // NO CHANGES - Maintain current state
+      if (radio_on) {
+        Serial.print("🔄 Radio staying ON (night continues - ");
+        Serial.print(current_lux);
         Serial.print(" lux < ");
-        Serial.print(UMBRAL_APAGADO);
+        Serial.print(TURN_OFF_THRESHOLD);
         Serial.println(" lux)");
       } else {
-        Serial.print("🔄 Radio manteniéndose APAGADA (día continúa - ");
-        Serial.print(lux_actual);
+        Serial.print("🔄 Radio staying OFF (day continues - ");
+        Serial.print(current_lux);
         Serial.print(" lux > ");
-        Serial.print(UMBRAL_ENCENDIDO);
+        Serial.print(TURN_ON_THRESHOLD);
         Serial.println(" lux)");
       }
     }
     
-    // Mostrar resumen del estado actual
-    if (cambio_estado) {
-      Serial.println("🎯 ESTADO CAMBIADO!");
+    // Show current state summary
+    if (state_changed) {
+      Serial.println("🎯 STATE CHANGED!");
     }
     
-    Serial.print("📊 Estado final: Radio ");
-    if (radio_encendida) {
-      Serial.println("🟢 ENCENDIDA");
+    Serial.print("📊 Final state: Radio ");
+    if (radio_on) {
+      Serial.println("🟢 ON");
     } else {
-      Serial.println("🔴 APAGADA");
+      Serial.println("🔴 OFF");
     }
     
-    // Mostrar temporizador para la próxima verificación
-    mostrarTemporizador();
+    // Show timer for next check
+    showTimer();
     Serial.println("-------------------");
     Serial.println();
     
   } else {
-    // Mostrar temporizador cada 5 segundos mientras espera
-    static unsigned long ultimo_temporizador = 0;
-    if (tiempo_actual - ultimo_temporizador >= 5000) {
-      ultimo_temporizador = tiempo_actual;
+    // Show timer every 5 seconds while waiting
+    static unsigned long last_timer = 0;
+    if (current_time - last_timer >= 5000) {
+      last_timer = current_time;
       
-      // Parpadeo visual cada 5 segundos para indicar que el sistema está activo
-      Serial.println("🔊 ¡BIP! Sistema activo - verificando temporizador...");
-      bipBipLED(1, 100); // 1 parpadeo de 100ms
+      // Visual blink every 5 seconds to indicate system is active
+      Serial.println("🔊 BEEP! System active - checking timer...");
+      blinkLED(1, 100); // 1 blink of 100ms
       
-      Serial.print("💤 Esperando... ");
-      mostrarTemporizador();
+      Serial.print("💤 Waiting... ");
+      showTimer();
       
-      // Mostrar estado actual de la radio
-      Serial.print("   📊 Radio actualmente: ");
-      if (radio_encendida) {
-        Serial.println("🟢 ENCENDIDA");
+      // Show current radio state
+      Serial.print("   📊 Radio currently: ");
+      if (radio_on) {
+        Serial.println("🟢 ON");
       } else {
-        Serial.println("🔴 APAGADA");
+        Serial.println("🔴 OFF");
       }
     }
   }
   
-  // Pequeña pausa para no saturar el procesador
+  // Small pause to not overload the processor
   delay(100);
 }
