@@ -9,11 +9,15 @@ const int RADIO_CONTROL_PIN = 16; // GPIO16 (corresponds to D0 on Wemos D1)
 // Built-in LED pin (GPIO2 on Wemos D1)
 const int LED_BUILTIN_PIN = 2;
 
+// External LED pin (GPIO13 on Wemos D1)
+const int EXTERNAL_LED_PIN = 13; // GPIO13 (corresponds to D7 on Wemos D1)
+
 // VEML7700 sensor object
 Adafruit_VEML7700 veml = Adafruit_VEML7700();
 
 // Cycle times (in milliseconds)
 const unsigned long CHECK_INTERVAL = 60000;  // Check light every 60 seconds
+const unsigned long INITIAL_ON_PERIOD = 120000;  // Keep radio ON for first 2 minutes (120000ms)
 
 // Light thresholds for twilight switch (in lux)
 const float TURN_ON_THRESHOLD = 30.0;   // Turn on when below 30 lux (early twilight)
@@ -22,12 +26,20 @@ const float TURN_OFF_THRESHOLD = 50.0;  // Turn off when above 50 lux (very earl
 // Current radio state
 bool radio_on = false;
 
+// Initial period control
+unsigned long system_start_time = 0;
+bool initial_period_active = true;
+
 // Cycle counter
 unsigned long cycle_counter = 0;
 
 // Timer variables
 unsigned long last_check_time = 0;
 unsigned long next_check_time = 0;
+
+// External LED blink timer (every 30 seconds)
+const unsigned long EXTERNAL_LED_BLINK_INTERVAL = 30000; // 30 seconds
+unsigned long last_external_blink = 0;
 
 // Function to make LED blink (visual beep)
 void blinkLED(int times, int duration_ms) {
@@ -51,6 +63,38 @@ void startupBeep() {
 void measurementBeep() {
   Serial.println("🔊 BEEP! Taking measurement...");
   blinkLED(1, 100); // 1 short blink of 100ms
+}
+
+// Function to control external LED
+void setExternalLED(bool state) {
+  digitalWrite(EXTERNAL_LED_PIN, state ? HIGH : LOW);
+}
+
+// Function for synchronized measurement indicator (built-in + external LED)
+void measurementIndicator() {
+  Serial.println("🔊 BEEP! Taking measurement...");
+  
+  // Blink built-in LED
+  blinkLED(1, 100);
+  
+  // Flash external LED synchronized with measurement
+  digitalWrite(EXTERNAL_LED_PIN, HIGH);
+  delay(100);
+  digitalWrite(EXTERNAL_LED_PIN, LOW);
+}
+
+// Function for external LED double blink (status indicator)
+void externalLEDDoubleBlink() {
+  // First blink
+  digitalWrite(EXTERNAL_LED_PIN, HIGH);
+  delay(200); // Longer duration for better visibility
+  digitalWrite(EXTERNAL_LED_PIN, LOW);
+  delay(150); // Short pause between blinks
+  
+  // Second blink
+  digitalWrite(EXTERNAL_LED_PIN, HIGH);
+  delay(200); // Longer duration for better visibility
+  digitalWrite(EXTERNAL_LED_PIN, LOW);
 }
 
 // Function to format time in mm:ss
@@ -129,10 +173,12 @@ void setup() {
   // Configure pins FIRST (before everything else)
   pinMode(RADIO_CONTROL_PIN, OUTPUT);
   pinMode(LED_BUILTIN_PIN, OUTPUT);
+  pinMode(EXTERNAL_LED_PIN, OUTPUT);
   
   // Initialize LED off and radio off
   digitalWrite(LED_BUILTIN_PIN, HIGH); // HIGH = off on ESP8266
   digitalWrite(RADIO_CONTROL_PIN, LOW); // Ensure radio off at startup
+  digitalWrite(EXTERNAL_LED_PIN, LOW); // External LED off initially
   
   // Pause for system stabilization
   delay(2000); // Increased for better battery stabilization
@@ -146,6 +192,9 @@ void setup() {
   
   Serial.println("=== TWILIGHT SWITCH WITH TIMER ===");
   Serial.println("Automatic radio control with VEML7700 sensor");
+  Serial.print("🚀 INITIAL ON period: ");
+  Serial.print(INITIAL_ON_PERIOD / 1000);
+  Serial.println(" seconds (radio stays ON regardless of light)");
   Serial.print("🌅 TURN ON threshold (twilight): ");
   Serial.print(TURN_ON_THRESHOLD);
   Serial.println(" lux");
@@ -156,6 +205,13 @@ void setup() {
   Serial.print(CHECK_INTERVAL / 1000);
   Serial.println(" seconds");
   Serial.println("🔊 Built-in LED configured for visual indicators");
+  Serial.println("💡 External LED (GPIO13) configured for status indication");
+  Serial.print("   - Fixed ON during initial 2-minute period");
+  Serial.println();
+  Serial.print("   - Double blink every ");
+  Serial.print(EXTERNAL_LED_BLINK_INTERVAL / 1000);
+  Serial.println(" seconds during normal operation");
+  Serial.println("   - Single flash with each measurement");
   Serial.println();
   
   // Initialize I2C with retries for better robustness
@@ -188,19 +244,28 @@ void setup() {
     }
   }
   
-  // Initialize radio in off state
-  digitalWrite(RADIO_CONTROL_PIN, LOW);
-  radio_on = false;
-  Serial.println("✅ Radio initialized in OFF state");
+  // Initialize radio in ON state for initial period
+  digitalWrite(RADIO_CONTROL_PIN, HIGH);  // Turn radio ON initially
+  digitalWrite(EXTERNAL_LED_PIN, HIGH);   // Turn external LED ON for initial period
+  radio_on = true;
+  system_start_time = millis();  // Record system start time
+  initial_period_active = true;
   
-  // Take initial reading to determine state
-  Serial.println("\n📊 Evaluating initial conditions...");
-  measurementBeep(); // Beep for initial measurement
+  Serial.println("✅ Radio initialized in ON state for initial 2-minute period");
+  Serial.println("💡 External LED turned ON for initial period");
+  Serial.print("⏰ Initial period will last: ");
+  Serial.print(INITIAL_ON_PERIOD / 1000);
+  Serial.println(" seconds");
+  
+  // Take initial reading to show conditions (but don't act on them yet)
+  Serial.println("\n📊 Evaluating initial conditions (radio will stay ON for 2 minutes)...");
+  measurementBeep(); // Use simple beep during initial setup (external LED is already ON)
   showLightData();
   
   // Initialize timer
   last_check_time = millis();
   next_check_time = last_check_time + CHECK_INTERVAL;
+  last_external_blink = millis(); // Initialize external LED blink timer
   showTimer();
   
   Serial.println("================================\n");
@@ -209,7 +274,85 @@ void setup() {
 void loop() {
   unsigned long current_time = millis();
   
-  // Check if it's time for a new verification
+  // Check if we're still in the initial 2-minute period
+  if (initial_period_active) {
+    unsigned long elapsed_time = current_time - system_start_time;
+    
+    if (elapsed_time >= INITIAL_ON_PERIOD) {
+      // Initial period has ended
+      initial_period_active = false;
+      Serial.println("\n🎯 INITIAL 2-MINUTE PERIOD COMPLETED!");
+      Serial.println("📡 Radio will now follow automatic twilight switch logic");
+      Serial.println("💡 External LED will now sync with measurements");
+      
+      // Turn off external LED (it will now flash with measurements)
+      setExternalLED(false);
+      
+      Serial.println("================================");
+      
+      // Take a reading to determine what state we should be in now
+      measurementIndicator(); // Use new synchronized function
+      float current_lux = veml.readLux();
+      showLightData();
+      
+      // Apply normal twilight logic immediately
+      if (current_lux <= TURN_ON_THRESHOLD) {
+        Serial.println("🌙 Light level indicates radio should stay ON");
+        // Radio is already ON, so no change needed
+      } else if (current_lux >= TURN_OFF_THRESHOLD) {
+        Serial.println("🌅 Light level indicates radio should turn OFF");
+        digitalWrite(RADIO_CONTROL_PIN, LOW);
+        radio_on = false;
+        Serial.println("✅ RADIO OFF (transitioning from initial period)");
+      }
+      
+      // Reset timer for normal operation
+      last_check_time = current_time;
+      next_check_time = current_time + CHECK_INTERVAL;
+      last_external_blink = current_time; // Reset external LED blink timer
+      Serial.println("-------------------\n");
+      
+    } else {
+      // Still in initial period - show countdown every 10 seconds
+      static unsigned long last_countdown = 0;
+      if (current_time - last_countdown >= 10000) {
+        last_countdown = current_time;
+        
+        unsigned long remaining_time = INITIAL_ON_PERIOD - elapsed_time;
+        Serial.print("🚀 INITIAL PERIOD: Radio staying ON for ");
+        showTime(remaining_time);
+        Serial.println(" more (mm:ss)");
+        Serial.println("   💡 External LED: ON (fixed during initial period)");
+        
+        // Show current light conditions for reference
+        float current_lux = veml.readLux();
+        Serial.print("   💡 Current light: ");
+        Serial.print(current_lux);
+        Serial.print(" lux (");
+        if (current_lux < 10) {
+          Serial.print("VERY DARK");
+        } else if (current_lux < 50) {
+          Serial.print("DARK");
+        } else if (current_lux < 200) {
+          Serial.print("INDOOR/CLOUDY");
+        } else if (current_lux < 1000) {
+          Serial.print("BRIGHT");
+        } else {
+          Serial.print("DIRECT SUNLIGHT");
+        }
+        Serial.println(")");
+        
+        // Blink to show system is active
+        blinkLED(1, 100);
+      }
+    }
+    
+    // Small pause and return (skip normal twilight logic during initial period)
+    delay(100);
+    return;
+  }
+  
+  // NORMAL OPERATION: Check if it's time for a new verification
   if (current_time >= next_check_time) {
     // Increment check counter
     cycle_counter++;
@@ -232,7 +375,7 @@ void loop() {
     Serial.println(minutes);
     
     // Read current light level
-    measurementBeep(); // Beep to indicate measurement
+    measurementIndicator(); // Use synchronized measurement indicator
     float current_lux = veml.readLux();
     showLightData();
     Serial.println();
@@ -320,6 +463,13 @@ void loop() {
       } else {
         Serial.println("🔴 OFF");
       }
+    }
+    
+    // External LED double blink every 30 seconds (only during normal operation)
+    if (!initial_period_active && (current_time - last_external_blink >= EXTERNAL_LED_BLINK_INTERVAL)) {
+      last_external_blink = current_time;
+      Serial.println("💡 External LED: Double blink status indicator");
+      externalLEDDoubleBlink();
     }
   }
   
