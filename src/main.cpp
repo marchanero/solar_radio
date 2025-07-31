@@ -70,7 +70,7 @@ void setExternalLED(bool state) {
   digitalWrite(EXTERNAL_LED_PIN, state ? HIGH : LOW);
 }
 
-// Function for synchronized measurement indicator (built-in + external LED)
+// Function for synchronized measurement indicator (built-in + external LED) with 220 resistor
 void measurementIndicator() {
   Serial.println("🔊 BEEP! Taking measurement...");
   
